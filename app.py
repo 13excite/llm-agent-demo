@@ -22,41 +22,39 @@ class AgentState(TypedDict):
 
 
 def router_agent(state: AgentState):
-    prompt = f"""Ты — Главный системный архитектор. Твоя задача — классифицировать входящую техническую проблему.
+    prompt = f"""You are the Senior Systems Architect. Your job is to classify incoming technical issues.
     
-    Если проблема связана с: Docker, CI/CD pipelines, GitHub Actions, Linux, Bash, Kubernetes, логами серверов, правами доступа или деплоем — верни строго слово: DEVOPS
-    Если проблема связана с: кодом (Python, JS и т.д.), базами данных, SQL-запросами, созданием API-эндпоинтов или багами в логике приложения — верни строго слово: DEVELOPER
+    If the issue is related to: Docker, CI/CD pipelines, GitHub Actions, Linux, Bash, Kubernetes, server logs, access rights, or deployment — return strictly the word: DEVOPS
+    If the issue is related to: code (Python, JS, etc.), databases, SQL queries, API endpoint creation, or application logic bugs — return strictly the word: DEVELOPER
     
-    Проблема: {state['task']}
-    Ответ (только одно слово, DEVOPS или DEVELOPER):"""
+    Issue: {state['task']}
+    Answer (only one word, DEVOPS or DEVELOPER):"""
     
     response = llm.invoke([HumanMessage(content=prompt)])
     decision = response.content.strip().upper()
     
-    # Очистка от возможных артефактов модели
+    # Clean possible artifacts from the model's response
     if "DEVOPS" in decision:
         specialist = "devops"
     else:
         specialist = "developer"
-        
     return {"specialist": specialist}
 
 def devops_agent(state: AgentState):
-    prompt = f"""Ты — Senior DevOps Engineer. Реши проблему автоматизации или устрани инцидент в инфраструктуре.
-    Предоставь пошаговое решение, конфигурационные файлы (если нужны) или bash-команды.
+    prompt = f"""You are a Senior DevOps Engineer. Solve the automation problem or resolve the infrastructure incident.
+    Provide a step-by-step solution, configuration files (if needed), or bash commands.
     
-    Задача: {state['task']}
-    Решение:"""
-    
+    Task: {state['task']}
+    Solution:"""
     response = llm.invoke([HumanMessage(content=prompt)])
     return {"solution": response.content}
 
 def developer_agent(state: AgentState):
-    prompt = f"""Ты — Senior Backend Developer. Исправь баг в коде, напиши функцию или оптимизируй запрос.
-    Предоставь чистый код с кратким объяснением.
+    prompt = f"""You are a Senior Backend Developer. Fix the bug in the code, write a function, or optimize the query.
+    Provide clean code with a brief explanation.
     
-    Задача: {state['task']}
-    Решение:"""
+    Task: {state['task']}
+    Solution:"""
     
     response = llm.invoke([HumanMessage(content=prompt)])
     return {"solution": response.content}
