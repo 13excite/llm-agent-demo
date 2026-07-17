@@ -19,6 +19,7 @@ llm = ChatOllama(
 class TaskRequest(BaseModel):
     task: str
 
+
 class AgentState(TypedDict):
     task: str
     specialist: str
@@ -44,24 +45,27 @@ async def router_agent(state: AgentState):
         specialist = "developer"
     return {"specialist": specialist}
 
+
 async def devops_agent(state: AgentState):
     prompt = f"""You are a Senior DevOps Engineer. Solve the automation problem or resolve the infrastructure incident.
-    Provide a step-by-step solution, configuration files (if needed), or bash commands.
+    Provide a possble short solution: 1 sentence or 1 short command.
 
     Task: {state['task']}
     Solution:"""
     response = await llm.ainvoke([HumanMessage(content=prompt)])
     return {"solution": response.content}
+
 
 async def developer_agent(state: AgentState):
     prompt = f"""You are a Senior Backend Developer. Fix the bug in the code, write a function, or optimize the query.
-    Provide clean code with a brief explanation.
+    Provide a possible short solution: 1 sentence or 1 short code snippet.
 
     Task: {state['task']}
     Solution:"""
 
     response = await llm.ainvoke([HumanMessage(content=prompt)])
     return {"solution": response.content}
+
 
 def route_decision(state: AgentState) -> Literal["devops", "developer"]:
     return state["specialist"]
@@ -98,16 +102,15 @@ async def solve_task(request: TaskRequest):
             "specialist": "",
             "solution": ""
         }
-        
+
         result = await agent_graph.ainvoke(initial_state)
-        
+
         return {
             "status": "success",
             "assigned_to": result["specialist"],
             "task_received": request.task,
             "solution": result["solution"]
         }
-        
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
