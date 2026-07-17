@@ -7,25 +7,28 @@ from langchain_ollama import ChatOllama
 from langchain_core.messages import HumanMessage
 from langgraph.graph import StateGraph, START, END
 
+# init FastAPI
 app = FastAPI(title="DevOps & Dev Multi-Agent Service")
 
+# init local LLM via Ollama
 llm = ChatOllama(
     model="gemma4",
     temperature=0,
     client_kwargs={"timeout": 120},
 )
 
-
+# Request model for incoming tasks
 class TaskRequest(BaseModel):
     task: str
 
-
+# Define the state which will be passed between agents in the workflow
 class AgentState(TypedDict):
     task: str
     specialist: str
     solution: str
 
 
+# Main router agent that classifies the incoming task and decides which specialist should handle it
 async def router_agent(state: AgentState):
     prompt = f"""You are the Senior Systems Architect. Your job is to classify incoming technical issues.
 
@@ -45,7 +48,7 @@ async def router_agent(state: AgentState):
         specialist = "developer"
     return {"specialist": specialist}
 
-
+# DevOps agent that handles infrastructure and automation tasks
 async def devops_agent(state: AgentState):
     prompt = f"""You are a Senior DevOps Engineer. Solve the automation problem or resolve the infrastructure incident.
     Provide a possble short solution: 1 sentence or 1 short command.
@@ -55,7 +58,7 @@ async def devops_agent(state: AgentState):
     response = await llm.ainvoke([HumanMessage(content=prompt)])
     return {"solution": response.content}
 
-
+# Developer agent that handles code-related tasks
 async def developer_agent(state: AgentState):
     prompt = f"""You are a Senior Backend Developer. Fix the bug in the code, write a function, or optimize the query.
     Provide a possible short solution: 1 sentence or 1 short code snippet.
@@ -66,17 +69,19 @@ async def developer_agent(state: AgentState):
     response = await llm.ainvoke([HumanMessage(content=prompt)])
     return {"solution": response.content}
 
-
+# Function to decide the routing based on the specialist assigned by the router agent
 def route_decision(state: AgentState) -> Literal["devops", "developer"]:
     return state["specialist"]
 
-
+## Build the workflow graph connecting the router, devops, and developer agents
 workflow = StateGraph(AgentState)
 
+# Add nodes for each agent in the workflow
 workflow.add_node("router", router_agent)
 workflow.add_node("devops", devops_agent)
 workflow.add_node("developer", developer_agent)
 
+# Add edges to define the flow of the workflow
 workflow.add_edge(START, "router")
 
 workflow.add_conditional_edges(
@@ -91,6 +96,7 @@ workflow.add_conditional_edges(
 workflow.add_edge("devops", END)
 workflow.add_edge("developer", END)
 
+# Compile the workflow graph into an executable agent graph
 agent_graph = workflow.compile()
 
 
