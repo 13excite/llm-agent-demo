@@ -37,7 +37,9 @@ uvicorn app:app --reload
 Here is an example of how agent works with programming-related tasks:
 
 ```shell
-# curl -X POST http://127.0.0.1:8000/api/agent/solve     -H "Content-Type: application/json"     -d '{"task": "I see error <ZeroDivisionError: division by zero> in my python"}'|jq .
+# curl -X POST http://127.0.0.1:8000/api/agent/solve \
+ -H "Content-Type: application/json" \
+ -d '{"task": "I see error <ZeroDivisionError: division by zero> in my python"}'|jq .
 
 {
   "status": "success",
@@ -50,7 +52,9 @@ Here is an example of how agent works with programming-related tasks:
 Here is another example of how agent works with DevOps-related tasks:
 
 ```shell
-# curl -X POST http://127.0.0.1:8000/api/agent/solve     -H "Content-Type: application/json"     -d '{"task": "My kubernetes pod keeps crash looping"}'|jq .
+# curl -X POST http://127.0.0.1:8000/api/agent/solve \
+ -H "Content-Type: application/json" \
+ -d '{"task": "My kubernetes pod keeps crash looping"}'|jq .
 
 {
   "status": "success",
