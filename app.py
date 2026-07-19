@@ -7,70 +7,81 @@ from langchain_ollama import ChatOllama
 from langchain_core.messages import HumanMessage
 from langgraph.graph import StateGraph, START, END
 
+# Init FastAPI
 app = FastAPI(title="DevOps & Dev Multi-Agent Service")
 
-llm = ChatOllama(model="llama3", temperature=0)
+# Init local LLM via Ollama
+llm = ChatOllama(
+    model="gemma4",
+    temperature=0,
+    client_kwargs={"timeout": 120},
+)
 
-
+# Request model for incoming tasks
 class TaskRequest(BaseModel):
     task: str
 
+# Define the state which will be passed between agents in the workflow
 class AgentState(TypedDict):
     task: str
     specialist: str
     solution: str
 
 
-def router_agent(state: AgentState):
-    prompt = f"""Ты — Главный системный архитектор. Твоя задача — классифицировать входящую техническую проблему.
-    
-    Если проблема связана с: Docker, CI/CD pipelines, GitHub Actions, Linux, Bash, Kubernetes, логами серверов, правами доступа или деплоем — верни строго слово: DEVOPS
-    Если проблема связана с: кодом (Python, JS и т.д.), базами данных, SQL-запросами, созданием API-эндпоинтов или багами в логике приложения — верни строго слово: DEVELOPER
-    
-    Проблема: {state['task']}
-    Ответ (только одно слово, DEVOPS или DEVELOPER):"""
-    
-    response = llm.invoke([HumanMessage(content=prompt)])
+# Main router agent that classifies the incoming task and decides which specialist should handle it
+async def router_agent(state: AgentState):
+    prompt = f"""You are the Senior Systems Architect. Your job is to classify incoming technical issues.
+
+    If the issue is related to: Docker, CI/CD pipelines, GitHub Actions, Linux, Bash, Kubernetes, server logs, access rights, or deployment — return strictly the word: DEVOPS
+    If the issue is related to: code (Python, JS, etc.), databases, SQL queries, API endpoint creation, or application logic bugs — return strictly the word: DEVELOPER
+
+    Issue: {state['task']}
+    Answer (only one word, DEVOPS or DEVELOPER):"""
+
+    response = await llm.ainvoke([HumanMessage(content=prompt)])
     decision = response.content.strip().upper()
-    
-    # Очистка от возможных артефактов модели
+
+    # Clean possible artifacts from the model's response
     if "DEVOPS" in decision:
         specialist = "devops"
     else:
         specialist = "developer"
-        
     return {"specialist": specialist}
 
-def devops_agent(state: AgentState):
-    prompt = f"""Ты — Senior DevOps Engineer. Реши проблему автоматизации или устрани инцидент в инфраструктуре.
-    Предоставь пошаговое решение, конфигурационные файлы (если нужны) или bash-команды.
-    
-    Задача: {state['task']}
-    Решение:"""
-    
-    response = llm.invoke([HumanMessage(content=prompt)])
+# DevOps agent that handles infrastructure and automation tasks
+async def devops_agent(state: AgentState):
+    prompt = f"""You are a Senior DevOps Engineer. Solve the automation problem or resolve the infrastructure incident.
+    Provide a possble short solution: 1 sentence or 1 short command.
+
+    Task: {state['task']}
+    Solution:"""
+    response = await llm.ainvoke([HumanMessage(content=prompt)])
     return {"solution": response.content}
 
-def developer_agent(state: AgentState):
-    prompt = f"""Ты — Senior Backend Developer. Исправь баг в коде, напиши функцию или оптимизируй запрос.
-    Предоставь чистый код с кратким объяснением.
-    
-    Задача: {state['task']}
-    Решение:"""
-    
-    response = llm.invoke([HumanMessage(content=prompt)])
+# Developer agent that handles code-related tasks
+async def developer_agent(state: AgentState):
+    prompt = f"""You are a Senior Backend Developer. Fix the bug in the code, write a function, or optimize the query.
+    Provide a possible short solution: 1 sentence or 1 short code snippet.
+
+    Task: {state['task']}
+    Solution:"""
+
+    response = await llm.ainvoke([HumanMessage(content=prompt)])
     return {"solution": response.content}
 
+# Function to decide the routing based on the specialist assigned by the router agent
 def route_decision(state: AgentState) -> Literal["devops", "developer"]:
     return state["specialist"]
 
-
+## Build the workflow graph connecting the router, devops, and developer agents
 workflow = StateGraph(AgentState)
 
+# Add nodes for each agent in the workflow
 workflow.add_node("router", router_agent)
 workflow.add_node("devops", devops_agent)
 workflow.add_node("developer", developer_agent)
 
+# Add edges to define the flow of the workflow
 workflow.add_edge(START, "router")
 
 workflow.add_conditional_edges(
@@ -85,6 +96,7 @@ workflow.add_conditional_edges(
 workflow.add_edge("devops", END)
 workflow.add_edge("developer", END)
 
+# Compile the workflow graph into an executable agent graph
 agent_graph = workflow.compile()
 
 
@@ -96,16 +108,15 @@ async def solve_task(request: TaskRequest):
             "specialist": "",
             "solution": ""
         }
-        
-        result = agent_graph.invoke(initial_state)
-        
+
+        result = await agent_graph.ainvoke(initial_state)
+
         return {
             "status": "success",
             "assigned_to": result["specialist"],
             "task_received": request.task,
             "solution": result["solution"]
         }
-        
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
