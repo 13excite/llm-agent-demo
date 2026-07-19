@@ -7,10 +7,10 @@ from langchain_ollama import ChatOllama
 from langchain_core.messages import HumanMessage
 from langgraph.graph import StateGraph, START, END
 
-# init FastAPI
+# Init FastAPI
 app = FastAPI(title="DevOps & Dev Multi-Agent Service")
 
-# init local LLM via Ollama
+# Init local LLM via Ollama
 llm = ChatOllama(
     model="gemma4",
     temperature=0,
